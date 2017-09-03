@@ -2,6 +2,7 @@ package ink.akto.converter.currency.android.presentation.presenters;
 
 import android.support.annotation.NonNull;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +27,7 @@ import ink.akto.converter.currency.core.repo.RepoContracts.IValuta;
 
 public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
 {
-    @NonNull private Map<String, IMainView> views;
+    @NonNull private Map<String, WeakReference<IMainView>> views;
     @NonNull private IMainModel model;
     @NonNull private IResourceManager resourceManager;
 
@@ -43,7 +44,7 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
                          @NonNull IValutaConvertionUseCase<IValuta> useCase)
     {
         views = new HashMap<>();
-        views.put(view.getClass().getSimpleName(), view);
+        views.put(view.getClass().getSimpleName(), new WeakReference<>(view));
 
         this.model = model;
         this.resourceManager = resourceManager;
@@ -83,7 +84,7 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
     @Override
     public void addView(@NonNull IMainView view)
     {
-        views.put(view.getClass().getSimpleName(), view);
+        views.put(view.getClass().getSimpleName(), new WeakReference<>(view));
     }
 
     private List<IValutaCharacteristics> adaptValutas(@NonNull List<IValuta> valutas)
@@ -105,16 +106,49 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
             try
             {
                 valutas = model.updateValutasBlocking();
+                enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_STATE_CHANGED);
             }
-            catch (Exception e)
+                catch (Exception e)
             {
                 e.printStackTrace();
-                for (int i = 0; i < views.size(); i++)
-                {
-                    views.get(i).notifyError(resourceManager.getStringErrorDownloading());
-                }
+                enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_ERROR);
             }
         });
+    }
+
+    private enum Execute{NOTIFY_ERROR, NOTIFY_STATE_CHANGED}
+    private void enumerateViewsAndExecuteInMainThread(@NonNull Execute execute)
+    {
+        for (Map.Entry<String, WeakReference<IMainView>> entry : views.entrySet())
+        {
+            WeakReference<IMainView> view = entry.getValue();
+
+            threadsManager.getMainTreadExecutor().execute(
+                new Runnable()
+                {
+                    @Override
+                    public void run()
+                    {
+                        if(view.get()!=null)
+                        {
+                            switch (execute)
+                            {
+                                case NOTIFY_STATE_CHANGED:
+                                {
+                                    if(!view.get().notifyStateChanged()) break;
+                                    else return;
+                                }
+                                case NOTIFY_ERROR:
+                                {
+                                    if(!view.get().notifyError(resourceManager.getStringErrorDownloading()))break;
+                                    else return;
+                                }
+                            }
+                            threadsManager.getMainTreadExecutor().executeDelayed(this, 100);
+                        }
+                    }
+                });
+        }
     }
 
     @Override
@@ -122,26 +156,7 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
     {
         if(event == StateChangeEvent.MAIN_STATE_CHANGED)
         {
-            for (Map.Entry<String, IMainView> entry : views.entrySet())
-            {
-                IMainView view = entry.getValue();
-
-                if(!view.notifyStateChanged())
-                {
-                    threadsManager.getMainTreadExecutor().execute(
-                            new Runnable()
-                            {
-                                @Override
-                                public void run()
-                                {
-                                    if(!view.notifyStateChanged())
-                                    {
-                                        threadsManager.getMainTreadExecutor().executeDelayed(this, 100);
-                                    }
-                                }
-                            });
-                }
-            }
+            enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_STATE_CHANGED);
         }
     }
 }

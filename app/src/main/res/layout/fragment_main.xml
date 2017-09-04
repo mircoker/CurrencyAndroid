@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             android:layout_width="match_parent"
-             android:layout_height="match_parent"
-             xmlns:app="http://schemas.android.com/apk/res-auto">
+             xmlns:app="http://schemas.android.com/apk/res-auto"
+             android:layout_width="wrap_content"
+             android:layout_height="wrap_content">
 
     <android.support.v7.widget.CardView
+        android:layout_gravity="center|top"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:animateLayoutChanges="true"
@@ -15,17 +16,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="3dp"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
             <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
 
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center"
+                    android:gravity="center"
                     android:orientation="horizontal">
 
                     <TextView
@@ -36,37 +38,17 @@
                         android:textSize="16dp"/>
 
                     <NumberPicker
+                        android:id="@+id/picker_from"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"/>
 
                 </LinearLayout>
 
-                <android.support.v7.widget.AppCompatTextView
-                    android:id="@+id/tw_from_name"
-                    android:layout_width="150dp"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:textSize="16dp"/>
-
-                <android.support.v7.widget.AppCompatTextView
-                    android:id="@+id/tw_from_value"
-                    android:layout_width="150dp"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="fill"
-                    android:gravity="center"
-                    android:textSize="16dp"/>
-
-            </LinearLayout>
-
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
                 <LinearLayout
-                    android:layout_width="wrap_content"
+                    android:gravity="center"
+                    android:layout_weight="1"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
                     android:orientation="horizontal">
@@ -79,12 +61,26 @@
                         android:textSize="16dp"/>
 
                     <NumberPicker
-                        android:id="@+id/picker"
+                        android:id="@+id/picker_to"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"/>
 
                 </LinearLayout>
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <android.support.v7.widget.AppCompatTextView
+                    android:id="@+id/tw_from_name"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textSize="16dp"/>
 
                 <android.support.v7.widget.AppCompatTextView
                     android:id="@+id/tw_to_name"
@@ -93,8 +89,28 @@
                     android:gravity="center"
                     android:textSize="16dp"/>
 
-                <android.support.v7.widget.AppCompatTextView
+            </LinearLayout>
+
+            <LinearLayout
+                android:focusableInTouchMode="true"
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <EditText
+                    android:id="@+id/tw_from_value"
+                    android:background="@android:color/transparent"
+                    android:inputType="numberDecimal"
+                    android:layout_width="150dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="fill"
+                    android:gravity="center"
+                    android:textSize="16dp"/>
+
+                <EditText
                     android:id="@+id/tw_to_value"
+                    android:background="@android:color/transparent"
+                    android:inputType="numberDecimal"
                     android:layout_width="150dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"

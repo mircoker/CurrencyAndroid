@@ -1,6 +1,7 @@
 package ink.akto.converter.currency.android.presentation.views;
 
 import android.app.Activity;
+import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.view.View;
@@ -15,7 +16,6 @@ import ink.akto.converter.currency.android.ConverterApplication;
 import ink.akto.converter.currency.android.R;
 import ink.akto.converter.currency.android.ResourceManager;
 import ink.akto.converter.currency.android.presentation.presenters.MainPresenter;
-import ink.akto.converter.currency.android.presentation.repo.BundleCashStrategy;
 import ink.akto.converter.currency.core.domain.usecases.DefaultMainUseCase;
 import ink.akto.converter.currency.core.repo.CBRGetCourseStrategy;
 import ink.akto.converter.currency.core.repo.RepoContracts.IMainModel;
@@ -25,7 +25,6 @@ import ink.akto.converter.currency.core.repo.models.MainModel;
 public class MainActivity extends Activity implements IMainActivity
 {
     @NonNull private IMainPresenter presenter;
-    @NonNull private Bundle bundle;
     @NonNull private ProgressBar spinner;
 
     @Override
@@ -36,26 +35,28 @@ public class MainActivity extends Activity implements IMainActivity
 
         spinner = findViewById(R.id.spinner);
 
-        if(savedInstanceState==null)
-        {
-            bundle = new Bundle();
-        }
-            else
-        {
-            bundle = savedInstanceState;
-        }
-
         presenter = createPresenter(
                 this,
                 new ResourceManager(getResources()),
                 new MainModel(
                         new CBRGetCourseStrategy(),
-                        new SerializationSaveStrategy(getCacheDir()),
-                        new BundleCashStrategy(bundle)));
+                        new SerializationSaveStrategy(getCacheDir())));
 
         if(savedInstanceState==null)
         {
             presenter.updateState();
+        }
+            else
+        {
+            if(presenter.getValutasCharacteristics().isEmpty())
+            {
+                presenter.updateState();
+            }
+                else
+            {
+                spinner.setVisibility(View.GONE);
+//                replaceCardFragment();
+            }
         }
     }
 
@@ -81,7 +82,6 @@ public class MainActivity extends Activity implements IMainActivity
         spinner.setVisibility(View.GONE);
         getFragmentManager()
                 .beginTransaction()
-                .setCustomAnimations(R.animator.bot, R.animator.top)
                 .replace(R.id.container, MainFragment.newInstance())
                 .commit();
     }
@@ -89,13 +89,10 @@ public class MainActivity extends Activity implements IMainActivity
     @Override
     public boolean notifyStateChanged()
     {
-        if (!presenter.getCashedValutas().isEmpty())
+        if (!presenter.getValutasCharacteristics().isEmpty())
         {
             replaceCardFragment();
-        }
-            else
-        {
-            spinner.setVisibility(View.VISIBLE);
+            MediaPlayer.create(this, R.raw.light).start();
         }
 
         return true;
@@ -105,6 +102,7 @@ public class MainActivity extends Activity implements IMainActivity
     public boolean notifyError(@NonNull String error)
     {
         Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
+        MediaPlayer.create(this, R.raw.sad).start();
         return true;
     }
 
@@ -112,19 +110,5 @@ public class MainActivity extends Activity implements IMainActivity
     @Override
     public IMainPresenter getPresenter() {
         return presenter;
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState)
-    {
-        super.onSaveInstanceState(outState);
-        outState.putAll(bundle);
-    }
-
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState)
-    {
-        super.onRestoreInstanceState(savedInstanceState);
-        bundle.putAll(savedInstanceState);
     }
 }

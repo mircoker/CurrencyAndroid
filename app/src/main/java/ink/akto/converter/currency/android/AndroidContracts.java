@@ -20,21 +20,28 @@ public interface AndroidContracts
 {
     interface IMVPView {}
     interface IMVPPresenter{}
-//    interface IViewState {}
+    interface IViewState {}
 
     interface IMainView extends IMVPView
     {
+//        interface IMainViewState extends IViewState
+//        {
+//            int fromPos;
+//            int toPos;
+//
+//        }
         interface IValutaCharacteristics
         {
             @NonNull String getCharCode();
             @NonNull String getName();
         }
+
         boolean notifyStateChanged();
         boolean notifyError(@NonNull String error);
     }
     interface IMainPresenter<VALUTA_TYPE> extends IMVPPresenter, Listeners.IStateChangedListener
     {
-        @NonNull List<VALUTA_TYPE> getCashedValutas();
+        @NonNull List<VALUTA_TYPE> getValutasCharacteristics();
         double convertValuta(double number, @NonNull VALUTA_TYPE from, @NonNull VALUTA_TYPE to) throws MalformedParametersException;
         void addView(@NonNull IMainView view);
         void updateState();

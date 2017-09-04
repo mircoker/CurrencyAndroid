@@ -26,6 +26,7 @@ public class BundleCashStrategy implements RepoContracts.IRuntimeCashStrategy<Li
     public void save(List<IValuta> valutas, String s)
     {
         bundle.putSerializable(s, (Serializable) valutas);
+        System.out.println("SAVED IN BUNDLE");
     }
 
     @NonNull
@@ -34,6 +35,7 @@ public class BundleCashStrategy implements RepoContracts.IRuntimeCashStrategy<Li
     {
         List<IValuta> valutas = (List<IValuta>) bundle.getSerializable(s);
         if(valutas==null)valutas = new ArrayList<>();
+        System.out.println("RESTORED FROM BUNDLE");
         return valutas;
     }
 }

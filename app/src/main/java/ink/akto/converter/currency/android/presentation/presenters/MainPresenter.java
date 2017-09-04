@@ -3,7 +3,10 @@ package ink.akto.converter.currency.android.presentation.presenters;
 import android.support.annotation.NonNull;
 
 import java.lang.ref.WeakReference;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,7 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
     @NonNull private IValutaConvertionUseCase<IValuta> useCase;
 
     @NonNull private List<IValuta> valutas;
+    @NonNull private List<IValutaCharacteristics> valutasCharacteristics;
 
     public MainPresenter(@NonNull IMainView view,
                          @NonNull IEventBus eventBus,
@@ -52,16 +56,29 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
         this.useCase = useCase;
 
         valutas = new ArrayList<>();
+        valutasCharacteristics = new ArrayList<>();
 
         eventBus.register(getClass().getSimpleName(), this);
     }
 
 
     @NonNull
-    @Override
-    public List<IValutaCharacteristics> getCashedValutas()
+    public List<IValutaCharacteristics> getValutasCharacteristics()
     {
-        return adaptValutas(model.getRuntimeCashingValutas());
+        if(valutasCharacteristics.isEmpty())
+        {
+            try
+            {
+                if(valutas.isEmpty()) valutas = model.getCashedValutas();
+                valutasCharacteristics = adaptValutas(valutas);
+            }
+                catch (Exception e)
+            {
+                e.printStackTrace();
+            }
+        }
+
+        return valutasCharacteristics;
     }
 
     @Override
@@ -78,7 +95,8 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
 
         if(valutaFrom==null || valutaTo==null) throw new MalformedParametersException();
 
-        return useCase.convertValuta(number, valutaFrom, valutaTo);
+        return new BigDecimal(useCase.convertValuta(number, valutaFrom, valutaTo))
+                .setScale(3, RoundingMode.HALF_EVEN).doubleValue();
     }
 
     @Override
@@ -95,6 +113,9 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
             valutaCharacteristicsList.add(
                     new ValutaCharacteristics(valutas.get(i).getCharCode(), valutas.get(i).getName()));
         }
+
+        Collections.sort(valutaCharacteristicsList, (first, second) -> first.getCharCode().compareTo(second.getCharCode()));
+
         return valutaCharacteristicsList;
     }
 

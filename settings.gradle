@@ -1,1 +1,1 @@
-include ':CurrencyAndroid', ':CurrencyCore'
+include ':app', ':CurrencyCore'

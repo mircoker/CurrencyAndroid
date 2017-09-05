@@ -2,19 +2,26 @@ package ink.akto.converter.currency;
 
 import android.support.annotation.NonNull;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import ink.akto.converter.currency.android.AndroidContracts;
 import ink.akto.converter.currency.android.AndroidContracts.IMainPresenter;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState;
+import ink.akto.converter.currency.android.presentation.MainViewState;
 import ink.akto.converter.currency.android.presentation.views.MainActivity;
+import ink.akto.converter.currency.core.CoreContracts.IMainTreadExecutor;
+import ink.akto.converter.currency.core.ThreadsManager;
+import ink.akto.converter.currency.core.domain.usecases.DefaultMainUseCase;
 import ink.akto.converter.currency.core.repo.CBRGetCourseStrategy;
-import ink.akto.converter.currency.core.repo.RepoContracts;
+import ink.akto.converter.currency.core.repo.RepoContracts.ISaveStrategy;
 import ink.akto.converter.currency.core.repo.RepoContracts.IValuta;
-import ink.akto.converter.currency.core.repo.SerializationSaveStrategy;
+import ink.akto.converter.currency.core.repo.Valuta;
 import ink.akto.converter.currency.core.repo.models.MainModel;
 
 /**
@@ -25,39 +32,108 @@ import ink.akto.converter.currency.core.repo.models.MainModel;
 public class ExampleUnitTest
 {
     @Test
-    public void addition_isCorrect() throws Exception
+    public void testDefaultMainUseCase() throws Exception
     {
-        IMainPresenter presenter =
-            MainActivity.createPresenter(
-                new AndroidContracts.IMainView()
-                {
+        DefaultMainUseCase useCase = new DefaultMainUseCase();
+
+        IValuta mainValuta = new Valuta(0, "bitboxCoin", 1, "yo-yo-yo, it bitbox coin brother! Bumbfff!", 1, 0);
+        IValuta firstValuta = new Valuta(1, "firstCoin", 1, "U can buy first sex on it", 5000, 0);
+        IValuta secondValuta = new Valuta(2, "secondHandCoin", 1, "Remember to wash it before use", 5, 0);
+
+        double result = useCase.convertValuta(1, firstValuta, secondValuta);
+        Assert.assertTrue(String.valueOf(result), result==1000);
+    }
+
+
+    private volatile boolean stateChanged;
+    @Test
+    public void testMainPresenter() throws Exception
+    {
+        class Task
+        {
+            long time;
+            Runnable runnable;
+
+            Task(long time, Runnable runnable) {
+                this.time = time;
+                this.runnable = runnable;
+            }
+        }
+        ArrayList<Task> pendingTasksQueue = new ArrayList<>();
+
+        IMainView mainView = new IMainView() {
+            @Override
+            public boolean notifyStateChanged() {
+                stateChanged = true;
+                return true;
+            }
+
+            @Override
+            public boolean notifyError(@NonNull String error) {
+                return true;
+            }
+        };
+
+        IMainPresenter presenter = MainActivity.createPresenter(
+                mainView,
+                new ISaveStrategy<IMainViewState, String>() {
+                    private Map<String, IMainViewState> map = new HashMap<>();
+
                     @Override
-                    public boolean notifyStateChanged() {
-                        return false;
+                    public void save(IMainViewState o, String o2) throws Exception {
+                        map.put(o2, o);
+                    }
+
+                    @NonNull
+                    @Override
+                    public IMainViewState restore(String o) throws Exception {
+                        return map.get(o) != null ? map.get(o) : new MainViewState(new ArrayList<>());
+                    }
+                },
+                () -> "",
+                ThreadsManager.init(new IMainTreadExecutor() {
+                    @Override
+                    public void execute(@NonNull Runnable runnable) {
+                        pendingTasksQueue.add(new Task(0L, runnable));
                     }
 
                     @Override
-                    public boolean notifyError(@NonNull String error) {
-                        return false;
+                    public void executeDelayed(@NonNull Runnable runnable, long l) {
+                        pendingTasksQueue.add(new Task(System.nanoTime() + l, runnable));
                     }
-                },
-                new SerializationSaveStrategy(new File(".")),
-                () -> "",
-                new MainModel(new CBRGetCourseStrategy(), new RepoContracts.ISaveStrategy<List<IValuta>, String>()
-                {
-                    private SerializationSaveStrategy saveStrategy = new SerializationSaveStrategy(new File("."));
+                }),
+                new MainModel(new CBRGetCourseStrategy(), new ISaveStrategy<List<IValuta>, String>() {
+                    private Map<Object, Object> map = new HashMap();
 
                     @Override
                     public void save(List<IValuta> valutas, String s) throws Exception {
-                        saveStrategy.save((Serializable) valutas, s);
+                        map.put(valutas, s);
                     }
 
+                    @NonNull
                     @Override
                     public List<IValuta> restore(String s) throws Exception {
-                        return (List<IValuta>) saveStrategy.restore(s);
+                        return map.get(s) != null ? (List<IValuta>) map.get(s) : new ArrayList<>();
                     }
                 }));
 
         presenter.updateState();
+
+        while(true)
+        {
+            for (int i = 0; i < pendingTasksQueue.size(); i++)
+            {
+                if(pendingTasksQueue.get(i).time<System.nanoTime())
+                {
+                    pendingTasksQueue.get(i).runnable.run();
+                    pendingTasksQueue.remove(i);
+                    i--;
+                }
+            }
+
+            if(stateChanged && pendingTasksQueue.isEmpty()) break;
+        }
+
+        Assert.assertFalse(presenter.isNeedUpdate());
     }
 }

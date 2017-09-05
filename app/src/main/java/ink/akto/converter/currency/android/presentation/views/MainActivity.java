@@ -17,6 +17,8 @@ import ink.akto.converter.currency.android.ConverterApplication;
 import ink.akto.converter.currency.android.R;
 import ink.akto.converter.currency.android.ResourceManager;
 import ink.akto.converter.currency.android.presentation.presenters.MainPresenter;
+import ink.akto.converter.currency.android.repo.MainViewStateSerializationSaveStrategy;
+import ink.akto.converter.currency.core.CoreContracts.IThreadsManager;
 import ink.akto.converter.currency.core.domain.usecases.DefaultMainUseCase;
 import ink.akto.converter.currency.core.repo.CBRGetCourseStrategy;
 import ink.akto.converter.currency.core.repo.ListIValutasSerializationSaveStrategy;
@@ -40,8 +42,9 @@ public class MainActivity extends Activity implements IMainActivity
 
         presenter = createPresenter(
                 this,
-                new SerializationSaveStrategy(getCodeCacheDir()),
+                new MainViewStateSerializationSaveStrategy(new SerializationSaveStrategy(getCodeCacheDir())),
                 new ResourceManager(getResources()),
+                ConverterApplication.getThreadsManager(),
                 new MainModel(
                         new CBRGetCourseStrategy(),
                         new ListIValutasSerializationSaveStrategy(new SerializationSaveStrategy(getCacheDir()))));
@@ -57,12 +60,13 @@ public class MainActivity extends Activity implements IMainActivity
     }
 
     /**
-     * Создан исключительно ради тестов. Чтобы всегда получать относительно точную конфигурацию презентера.
+     * Создан исключительно ради тестов. Чтобы всегда получать относительно конфигурацию презентера для инициализации.
      * @return IMainPresenter
      */
     public static IMainPresenter createPresenter(@NonNull IMainView view,
-                                                 @NonNull ISaveStrategy saveStateStrategy,
+                                                 @NonNull ISaveStrategy<IMainViewState, String> saveStateStrategy,
                                                  @NonNull IResourceManager resourceManager,
+                                                 @NonNull IThreadsManager threadsManager,
                                                  @NonNull IMainModel model)
     {
         return new MainPresenter(
@@ -70,7 +74,7 @@ public class MainActivity extends Activity implements IMainActivity
             saveStateStrategy,
             model,
             resourceManager,
-            ConverterApplication.getThreadsManager(),
+            threadsManager,
             new DefaultMainUseCase());
     }
 

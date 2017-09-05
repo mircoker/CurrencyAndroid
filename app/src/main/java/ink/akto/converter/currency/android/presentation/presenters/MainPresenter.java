@@ -35,7 +35,7 @@ public class MainPresenter implements IMainPresenter
     @NonNull private static Map<String, WeakReference<IMainView>> views;
     @NonNull private IMainModel model;
     @NonNull private IResourceManager resourceManager;
-    @NonNull private ISaveStrategy saveStateStrategy;
+    @NonNull private ISaveStrategy<IMainViewState, String> saveStateStrategy;
     @NonNull private final IThreadsManager threadsManager;
     @NonNull private IValutaConvertionUseCase<IValuta> useCase;
 
@@ -43,7 +43,7 @@ public class MainPresenter implements IMainPresenter
     @Nullable private static volatile IMainViewState state;
 
     public MainPresenter(@NonNull IMainView view,
-                         @NonNull ISaveStrategy saveStateStrategy,
+                         @NonNull ISaveStrategy<IMainViewState, String> saveStateStrategy,
                          @NonNull IMainModel model,
                          @NonNull IResourceManager resourceManager,
                          @NonNull IThreadsManager threadsManager,

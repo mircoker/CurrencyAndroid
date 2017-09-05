@@ -121,17 +121,17 @@ public class MainFragment extends Fragment implements IMainView
                 commitState(state);
             });
             nameTo.setText(valutas.get(state.getToPos()).getName());
-            nameToValue.setText(String.valueOf(state.getToValue()));
+            nameToValue.setText(String.valueOf(calculateValue(state)));
             nameToValue.setKeyListener(null);
         }
     }
 
     private void commitState(@NonNull IMainViewState state)
     {
-        presenter.getState().setFromPos(numberPickerFrom.getValue());
-        presenter.getState().setToPos(numberPickerTo.getValue());
-        presenter.getState().setFromValue(Double.valueOf(nameFromValue.getText().toString()));
-        presenter.getState().setToValue(Double.valueOf(nameToValue.getText().toString()));
+        state.setFromPos(numberPickerFrom.getValue());
+        state.setToPos(numberPickerTo.getValue());
+        state.setFromValue(Double.valueOf(nameFromValue.getText().toString()));
+        state.setToValue(Double.valueOf(nameToValue.getText().toString()));
     }
 
     private double calculateValue(@NonNull IMainViewState state)
@@ -176,7 +176,7 @@ public class MainFragment extends Fragment implements IMainView
     {
         if(presenter!=null && nameToValue!=null)
         {
-            nameToValue.setText(String.valueOf(calculateValue(presenter.getState())));
+            initPickers(presenter.getState());
             return true;
         }
 

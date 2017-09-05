@@ -5,8 +5,12 @@ import android.os.IBinder;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
+import java.io.Serializable;
 import java.util.List;
 
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState.IValutaCharacteristics;
+import ink.akto.converter.currency.android.AndroidContracts.Listeners.IStateChangedListener;
 import ink.akto.converter.currency.android.presentation.MalformedParametersException;
 import ink.akto.converter.currency.core.CoreContracts;
 import ink.akto.converter.currency.core.repo.RepoContracts.IMainModel;
@@ -20,31 +24,43 @@ public interface AndroidContracts
 {
     interface IMVPView {}
     interface IMVPPresenter{}
-    interface IViewState {}
+    interface IViewState extends Serializable {}
 
     interface IMainView extends IMVPView
     {
-//        interface IMainViewState extends IViewState
-//        {
-//            int fromPos;
-//            int toPos;
-//
-//        }
-        interface IValutaCharacteristics
+        interface IMainViewState extends IViewState
         {
-            @NonNull String getCharCode();
-            @NonNull String getName();
+            int getFromPos();
+            void setFromPos(int pos);
+            int getToPos();
+            void setToPos(int pos);
+            double getFromValue();
+            void setFromValue(double val);
+            double getToValue();
+            void setToValue(double val);
+            @NonNull List<IValutaCharacteristics> getValutasCharacteristics();
+
+            interface IValutaCharacteristics extends Serializable
+            {
+                @NonNull String getCharCode();
+                @NonNull String getName();
+            }
         }
 
         boolean notifyStateChanged();
         boolean notifyError(@NonNull String error);
     }
-    interface IMainPresenter<VALUTA_TYPE> extends IMVPPresenter, Listeners.IStateChangedListener
+
+    interface IMainPresenter extends IMVPPresenter
     {
-        @NonNull List<VALUTA_TYPE> getValutasCharacteristics();
-        double convertValuta(double number, @NonNull VALUTA_TYPE from, @NonNull VALUTA_TYPE to) throws MalformedParametersException;
+        void saveState();
+        @NonNull IMainViewState getState();
+        double convertValuta(double number,
+                             @NonNull IValutaCharacteristics from,
+                             @NonNull IValutaCharacteristics to) throws MalformedParametersException;
         void addView(@NonNull IMainView view);
         void updateState();
+        boolean isNeedUpdate();
     }
 
     interface IResourceManager extends CoreContracts.IManager
@@ -52,7 +68,7 @@ public interface AndroidContracts
         @NonNull String getStringErrorDownloading();
     }
 
-    interface IEventBus extends Listeners.IStateChangedListener
+    interface IEventBus extends IStateChangedListener
     {
         void register(String key, Listeners.IEventBusListener listener);
         void unregister(String key);

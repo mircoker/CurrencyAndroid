@@ -1,4 +1,4 @@
-package ink.akto.converter.currency.android.presentation.repo;
+package ink.akto.converter.currency.android.repo;
 
 import android.os.Bundle;
 import android.support.annotation.NonNull;

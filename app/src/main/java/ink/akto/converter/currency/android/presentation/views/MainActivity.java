@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.Toast;
@@ -18,14 +19,16 @@ import ink.akto.converter.currency.android.ResourceManager;
 import ink.akto.converter.currency.android.presentation.presenters.MainPresenter;
 import ink.akto.converter.currency.core.domain.usecases.DefaultMainUseCase;
 import ink.akto.converter.currency.core.repo.CBRGetCourseStrategy;
+import ink.akto.converter.currency.core.repo.ListIValutasSerializationSaveStrategy;
 import ink.akto.converter.currency.core.repo.RepoContracts.IMainModel;
+import ink.akto.converter.currency.core.repo.RepoContracts.ISaveStrategy;
 import ink.akto.converter.currency.core.repo.SerializationSaveStrategy;
 import ink.akto.converter.currency.core.repo.models.MainModel;
 
 public class MainActivity extends Activity implements IMainActivity
 {
     @NonNull private IMainPresenter presenter;
-    @NonNull private ProgressBar spinner;
+    @Nullable private ProgressBar spinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -37,26 +40,19 @@ public class MainActivity extends Activity implements IMainActivity
 
         presenter = createPresenter(
                 this,
+                new SerializationSaveStrategy(getCodeCacheDir()),
                 new ResourceManager(getResources()),
                 new MainModel(
                         new CBRGetCourseStrategy(),
-                        new SerializationSaveStrategy(getCacheDir())));
+                        new ListIValutasSerializationSaveStrategy(new SerializationSaveStrategy(getCacheDir()))));
 
-        if(savedInstanceState==null)
+        if(savedInstanceState==null || presenter.isNeedUpdate())
         {
             presenter.updateState();
         }
             else
         {
-            if(presenter.getValutasCharacteristics().isEmpty())
-            {
-                presenter.updateState();
-            }
-                else
-            {
-                spinner.setVisibility(View.GONE);
-//                replaceCardFragment();
-            }
+            spinner.setVisibility(View.GONE);
         }
     }
 
@@ -65,12 +61,13 @@ public class MainActivity extends Activity implements IMainActivity
      * @return IMainPresenter
      */
     public static IMainPresenter createPresenter(@NonNull IMainView view,
+                                                 @NonNull ISaveStrategy saveStateStrategy,
                                                  @NonNull IResourceManager resourceManager,
                                                  @NonNull IMainModel model)
     {
         return new MainPresenter(
             view,
-            ConverterApplication.getEventBus(),
+            saveStateStrategy,
             model,
             resourceManager,
             ConverterApplication.getThreadsManager(),
@@ -83,15 +80,16 @@ public class MainActivity extends Activity implements IMainActivity
         getFragmentManager()
                 .beginTransaction()
                 .replace(R.id.container, MainFragment.newInstance())
-                .commit();
+                .commitAllowingStateLoss();
     }
 
     @Override
     public boolean notifyStateChanged()
     {
-        if (!presenter.getValutasCharacteristics().isEmpty())
+        if (spinner!=null && !presenter.getState().getValutasCharacteristics().isEmpty())
         {
             replaceCardFragment();
+            spinner.setVisibility(View.GONE);
             MediaPlayer.create(this, R.raw.light).start();
         }
 
@@ -101,14 +99,25 @@ public class MainActivity extends Activity implements IMainActivity
     @Override
     public boolean notifyError(@NonNull String error)
     {
-        Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
-        MediaPlayer.create(this, R.raw.sad).start();
-        return true;
+        if(spinner!=null)
+        {
+            Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
+            MediaPlayer.create(this, R.raw.sad).start();
+            spinner.setVisibility(View.GONE);
+            return true;
+        }
+        return false;
     }
 
     @NonNull
     @Override
     public IMainPresenter getPresenter() {
         return presenter;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        presenter.saveState();
     }
 }

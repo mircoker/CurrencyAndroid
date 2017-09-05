@@ -2,7 +2,7 @@ package ink.akto.converter.currency.android.presentation;
 
 import android.support.annotation.NonNull;
 
-import ink.akto.converter.currency.android.AndroidContracts.IMainView.IValutaCharacteristics;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState.IValutaCharacteristics;
 
 
 /**

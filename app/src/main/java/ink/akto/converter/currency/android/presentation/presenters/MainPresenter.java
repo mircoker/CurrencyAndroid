@@ -1,6 +1,7 @@
 package ink.akto.converter.currency.android.presentation.presenters;
 
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
@@ -11,78 +12,111 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import ink.akto.converter.currency.android.AndroidContracts.IEventBus;
 import ink.akto.converter.currency.android.AndroidContracts.IMainPresenter;
 import ink.akto.converter.currency.android.AndroidContracts.IMainView;
-import ink.akto.converter.currency.android.AndroidContracts.IMainView.IValutaCharacteristics;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState.IValutaCharacteristics;
 import ink.akto.converter.currency.android.AndroidContracts.IResourceManager;
-import ink.akto.converter.currency.android.AndroidContracts.Listeners.StateChangeEvent;
+import ink.akto.converter.currency.android.presentation.MainViewState;
 import ink.akto.converter.currency.android.presentation.MalformedParametersException;
 import ink.akto.converter.currency.android.presentation.ValutaCharacteristics;
 import ink.akto.converter.currency.core.CoreContracts.IThreadsManager;
 import ink.akto.converter.currency.core.domain.UseCasesContracts.IValutaConvertionUseCase;
 import ink.akto.converter.currency.core.repo.RepoContracts.IMainModel;
+import ink.akto.converter.currency.core.repo.RepoContracts.ISaveStrategy;
 import ink.akto.converter.currency.core.repo.RepoContracts.IValuta;
 
 /**
  * Created by Ruben on 30.08.2017.
  */
 
-public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
+public class MainPresenter implements IMainPresenter
 {
-    @NonNull private Map<String, WeakReference<IMainView>> views;
+    @NonNull private static Map<String, WeakReference<IMainView>> views;
     @NonNull private IMainModel model;
     @NonNull private IResourceManager resourceManager;
-
-    private final IThreadsManager threadsManager;
+    @NonNull private ISaveStrategy saveStateStrategy;
+    @NonNull private final IThreadsManager threadsManager;
     @NonNull private IValutaConvertionUseCase<IValuta> useCase;
 
-    @NonNull private List<IValuta> valutas;
-    @NonNull private List<IValutaCharacteristics> valutasCharacteristics;
+    @NonNull private static volatile List<IValuta> valutas;
+    @Nullable private static volatile IMainViewState state;
 
     public MainPresenter(@NonNull IMainView view,
-                         @NonNull IEventBus eventBus,
+                         @NonNull ISaveStrategy saveStateStrategy,
                          @NonNull IMainModel model,
                          @NonNull IResourceManager resourceManager,
                          @NonNull IThreadsManager threadsManager,
                          @NonNull IValutaConvertionUseCase<IValuta> useCase)
     {
-        views = new HashMap<>();
+        if(views==null)views = new HashMap<>();
         views.put(view.getClass().getSimpleName(), new WeakReference<>(view));
 
+        this.saveStateStrategy = saveStateStrategy;
         this.model = model;
         this.resourceManager = resourceManager;
         this.threadsManager = threadsManager;
         this.useCase = useCase;
 
-        valutas = new ArrayList<>();
-        valutasCharacteristics = new ArrayList<>();
-
-        eventBus.register(getClass().getSimpleName(), this);
+        try
+        {
+            valutas = model.getCashedValutas();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            valutas = new ArrayList<>();
+        }
     }
 
 
-    @NonNull
-    public List<IValutaCharacteristics> getValutasCharacteristics()
+
+    @Override
+    public void saveState()
     {
-        if(valutasCharacteristics.isEmpty())
+        try
+        {
+            saveStateStrategy.save(getState(), getClass().getSimpleName());
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    @NonNull
+    @Override
+    public IMainViewState getState()
+    {
+        if(state==null)
         {
             try
             {
-                if(valutas.isEmpty()) valutas = model.getCashedValutas();
-                valutasCharacteristics = adaptValutas(valutas);
+                state = (IMainViewState) saveStateStrategy.restore(getClass().getSimpleName());
             }
-                catch (Exception e)
-            {
+            catch (Exception e) {
                 e.printStackTrace();
+            }
+
+            if(state==null)
+            {
+                if(state==null)state = new MainViewState(new ArrayList<>());
+                try
+                {
+                    if(valutas.isEmpty()) valutas = model.getCashedValutas();
+                    state.getValutasCharacteristics().addAll(adaptValutas(valutas));
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
 
-        return valutasCharacteristics;
+        return state;
     }
 
     @Override
-    public double convertValuta(double number, @NonNull IValutaCharacteristics from, @NonNull IValutaCharacteristics to) throws MalformedParametersException
+    public double convertValuta(double number,
+                                @NonNull IValutaCharacteristics from,
+                                @NonNull IValutaCharacteristics to) throws MalformedParametersException
     {
         IValuta valutaFrom = null;
         IValuta valutaTo = null;
@@ -127,41 +161,50 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
             try
             {
                 valutas = model.updateValutasBlocking();
-                enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_STATE_CHANGED);
+                threadsManager.getMainTreadExecutor().execute(()->
+                {
+                    getState().getValutasCharacteristics().clear();
+                    getState().getValutasCharacteristics().addAll(adaptValutas(valutas));
+                });
+                enumerateViews(Execute.NOTIFY_STATE_CHANGED);
             }
                 catch (Exception e)
             {
                 e.printStackTrace();
-                enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_ERROR);
+                enumerateViews(Execute.NOTIFY_ERROR);
             }
         });
     }
 
+    @Override
+    public boolean isNeedUpdate() {
+        return valutas.isEmpty() || getState().getValutasCharacteristics().isEmpty();
+    }
+
     private enum Execute{NOTIFY_ERROR, NOTIFY_STATE_CHANGED}
-    private void enumerateViewsAndExecuteInMainThread(@NonNull Execute execute)
+    private void enumerateViews(@NonNull Execute execute)
     {
         for (Map.Entry<String, WeakReference<IMainView>> entry : views.entrySet())
         {
-            WeakReference<IMainView> view = entry.getValue();
-
             threadsManager.getMainTreadExecutor().execute(
                 new Runnable()
                 {
                     @Override
                     public void run()
                     {
-                        if(view.get()!=null)
+                        if(entry.getValue().get()!=null)
                         {
                             switch (execute)
                             {
                                 case NOTIFY_STATE_CHANGED:
                                 {
-                                    if(!view.get().notifyStateChanged()) break;
+
+                                    if(!entry.getValue().get().notifyStateChanged()) break;
                                     else return;
                                 }
                                 case NOTIFY_ERROR:
                                 {
-                                    if(!view.get().notifyError(resourceManager.getStringErrorDownloading()))break;
+                                    if(!entry.getValue().get().notifyError(resourceManager.getStringErrorDownloading()))break;
                                     else return;
                                 }
                             }
@@ -169,15 +212,6 @@ public class MainPresenter implements IMainPresenter<IValutaCharacteristics>
                         }
                     }
                 });
-        }
-    }
-
-    @Override
-    public void notifyStateChanged(StateChangeEvent event)
-    {
-        if(event == StateChangeEvent.MAIN_STATE_CHANGED)
-        {
-            enumerateViewsAndExecuteInMainThread(Execute.NOTIFY_STATE_CHANGED);
         }
     }
 }

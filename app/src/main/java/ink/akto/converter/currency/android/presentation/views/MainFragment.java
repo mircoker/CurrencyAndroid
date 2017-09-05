@@ -2,7 +2,6 @@ package ink.akto.converter.currency.android.presentation.views;
 
 import android.app.Fragment;
 import android.os.Bundle;
-import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.Editable;
@@ -20,6 +19,7 @@ import java.util.List;
 import ink.akto.converter.currency.android.AndroidContracts.IMainActivity;
 import ink.akto.converter.currency.android.AndroidContracts.IMainPresenter;
 import ink.akto.converter.currency.android.AndroidContracts.IMainView;
+import ink.akto.converter.currency.android.AndroidContracts.IMainView.IMainViewState.IValutaCharacteristics;
 import ink.akto.converter.currency.android.R;
 import ink.akto.converter.currency.android.presentation.MalformedParametersException;
 
@@ -29,7 +29,7 @@ import ink.akto.converter.currency.android.presentation.MalformedParametersExcep
 
 public class MainFragment extends Fragment implements IMainView
 {
-    @Nullable private IMainPresenter<IValutaCharacteristics> presenter;
+    @Nullable private IMainPresenter presenter;
     @Nullable private View rootView;
     @Nullable private NumberPicker numberPickerFrom;
     @Nullable private NumberPicker numberPickerTo;
@@ -37,7 +37,6 @@ public class MainFragment extends Fragment implements IMainView
     @Nullable private TextView nameTo;
     @Nullable private EditText nameFromValue;
     @Nullable private EditText nameToValue;
-    @NonNull private Handler handler;
 
     public static MainFragment newInstance() {
 
@@ -52,7 +51,6 @@ public class MainFragment extends Fragment implements IMainView
     public void onCreate(@Nullable Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
-        handler = new Handler();
         setRetainInstance(true);
     }
 
@@ -63,20 +61,17 @@ public class MainFragment extends Fragment implements IMainView
 
         presenter = ((IMainActivity)getActivity()).getPresenter();
         presenter.addView(this);
-        if(savedInstanceState==null)initPickers(presenter);
+        if(savedInstanceState==null)initPickers(presenter.getState());
     }
 
-    /**
-     * Presenter бывает null, по этому лучше передавать его аргументом чтобы следить за этим в моменты вызова
-     * @param presenter
-     */
-    private void initPickers(@NonNull IMainPresenter<IValutaCharacteristics> presenter)
+    private void initPickers(@NonNull IMainViewState state)
     {
-        List<IValutaCharacteristics> valutas = presenter.getValutasCharacteristics();
+        List<IValutaCharacteristics> valutas = state.getValutasCharacteristics();
         if(!valutas.isEmpty())
         {
             numberPickerFrom.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
             numberPickerTo.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
+
 
             List<String> charsCodes = new ArrayList<>();
 
@@ -88,14 +83,16 @@ public class MainFragment extends Fragment implements IMainView
             numberPickerFrom.setMaxValue(charsCodes.size()-1);
             numberPickerFrom.setMinValue(0);
             numberPickerFrom.setDisplayedValues(charsCodes.toArray(new String[]{}));
+            numberPickerFrom.setValue(state.getFromPos());
             numberPickerFrom.setWrapSelectorWheel(true);
             numberPickerFrom.setOnValueChangedListener((numberPicker, i, i1) ->
             {
                 nameFrom.setText(valutas.get(i1).getName());
-                setCalculatedValue(nameToValue);
+                nameToValue.setText(String.valueOf(calculateValue(state)));
+                commitState(state);
             });
-            nameFrom.setText(valutas.get(0).getName());
-            nameFromValue.setText("0");
+            nameFrom.setText(valutas.get(state.getFromPos()).getName());
+            nameFromValue.setText(String.valueOf(state.getFromValue()));
             nameFromValue.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {}
@@ -104,36 +101,53 @@ public class MainFragment extends Fragment implements IMainView
                 @Override
                 public void afterTextChanged(Editable editable)
                 {
-                    if(!editable.toString().isEmpty())setCalculatedValue(nameToValue);
+                    if(!editable.toString().isEmpty())
+                    {
+                        nameToValue.setText(String.valueOf(calculateValue(state)));
+                        commitState(state);
+                    }
                 }
             });
 
             numberPickerTo.setMaxValue(charsCodes.size()-1);
             numberPickerTo.setMinValue(0);
             numberPickerTo.setDisplayedValues(charsCodes.toArray(new String[]{}));
+            numberPickerTo.setValue(state.getToPos());
             numberPickerTo.setWrapSelectorWheel(true);
             numberPickerTo.setOnValueChangedListener((numberPicker, i, i1) ->
             {
                 nameTo.setText(valutas.get(i1).getName());
-                setCalculatedValue(nameToValue);
+                nameToValue.setText(String.valueOf(calculateValue(state)));
+                commitState(state);
             });
-            nameTo.setText(valutas.get(0).getName());
-            nameToValue.setText("0");
+            nameTo.setText(valutas.get(state.getToPos()).getName());
+            nameToValue.setText(String.valueOf(state.getToValue()));
             nameToValue.setKeyListener(null);
         }
     }
 
-    private void setCalculatedValue(@NonNull EditText target)
+    private void commitState(@NonNull IMainViewState state)
+    {
+        presenter.getState().setFromPos(numberPickerFrom.getValue());
+        presenter.getState().setToPos(numberPickerTo.getValue());
+        presenter.getState().setFromValue(Double.valueOf(nameFromValue.getText().toString()));
+        presenter.getState().setToValue(Double.valueOf(nameToValue.getText().toString()));
+    }
+
+    private double calculateValue(@NonNull IMainViewState state)
     {
         try
         {
-            target.setText(String.valueOf(presenter.convertValuta(Double.valueOf(nameFromValue.getText().toString()),
-                    presenter.getValutasCharacteristics().get(numberPickerFrom.getValue()),
-                    presenter.getValutasCharacteristics().get(numberPickerTo.getValue()))));
+            return presenter.convertValuta(Double.valueOf(nameFromValue.getText().toString()),
+                    state.getValutasCharacteristics().get(numberPickerFrom.getValue()),
+                    state.getValutasCharacteristics().get(numberPickerTo.getValue()));
+
         }
-        catch (MalformedParametersException e) {
+            catch (MalformedParametersException e)
+        {
             e.printStackTrace();
         }
+        return 0;
     }
 
     @Nullable
@@ -160,9 +174,9 @@ public class MainFragment extends Fragment implements IMainView
     @Override
     public boolean notifyStateChanged()
     {
-        if(presenter!=null)
+        if(presenter!=null && nameToValue!=null)
         {
-            initPickers(presenter);
+            nameToValue.setText(String.valueOf(calculateValue(presenter.getState())));
             return true;
         }
 
